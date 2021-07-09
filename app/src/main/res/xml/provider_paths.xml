@@ -1,0 +1,5 @@
+<paths>
+    <cache-path
+        name="scans"
+        path="scans/" />
+</paths>
