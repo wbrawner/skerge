@@ -38,6 +38,7 @@ class MainActivity : ComponentActivity() {
                 ScanScreen(
                     addButtonClicked = { viewModel.requestScan(scansDirectory) },
                     shareButtonClicked = { sharePdf(viewModel.pages.replayCache.first()) },
+                    removePage = viewModel::removePage,
                     pagesFlow = viewModel.pages
                 )
             }
@@ -61,6 +62,7 @@ class MainActivity : ComponentActivity() {
 fun ScanScreen(
     addButtonClicked: () -> Unit,
     shareButtonClicked: () -> Unit,
+    removePage: (Page) -> Unit,
     pagesFlow: SharedFlow<List<Page>>
 ) {
     val pages = pagesFlow.collectAsState(initial = emptyList())
@@ -87,7 +89,7 @@ fun ScanScreen(
         if (pages.value.isEmpty()) {
             EmptyDocumentView()
         } else {
-            PageList(pages.value)
+            PageList(pages.value, removePage)
         }
     }
 }
@@ -111,7 +113,7 @@ fun EmptyDocumentView() {
 }
 
 @Composable
-fun PageList(pages: List<Page>) {
+fun PageList(pages: List<Page>, removePage: (Page) -> Unit) {
     LazyColumn(modifier = Modifier.fillMaxSize()) {
         itemsIndexed(items = pages) { index, page ->
             val topPadding = if (index == 0) 16.dp else 8.dp
@@ -122,14 +124,14 @@ fun PageList(pages: List<Page>) {
                     .padding(start = 16.dp, end = 16.dp, top = topPadding, bottom = bottomPadding)
                     .aspectRatio(8.5f / 11),
             ) {
-                PagePreview(page = page)
+                PagePreview(page = page, removePage)
             }
         }
     }
 }
 
 @Composable
-fun PagePreview(page: Page) {
+fun PagePreview(page: Page, removePage: (Page) -> Unit) {
     val (pageBitmap, setPageBitmap) = remember { mutableStateOf<Bitmap?>(null) }
     LaunchedEffect(page.file) {
         setPageBitmap(page.loadBitmap().first)
@@ -140,7 +142,21 @@ fun PagePreview(page: Page) {
             bitmap = it.asImageBitmap(),
             contentDescription = null
         )
-    } ?: LoadingPage()
+    }
+        ?: page.error?.let {
+            Column(
+                modifier = Modifier.fillMaxSize(),
+                verticalArrangement = Arrangement.Center,
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(it.localizedMessage ?: "An unknown error has occurred")
+                TextButton(
+                    onClick = { removePage(page) }
+                ) {
+                    Text("Remove page")
+                }
+            }
+        } ?: LoadingPage()
 }
 
 @Composable
@@ -157,7 +173,7 @@ fun LoadingPage() {
 @Composable
 fun DefaultPreview() {
     SkergeTheme {
-        ScanScreen({}, {}, MutableSharedFlow())
+        ScanScreen({}, {}, {}, MutableSharedFlow())
     }
 }
 
@@ -165,6 +181,14 @@ fun DefaultPreview() {
 @Composable
 fun LoadingPagePreview() {
     SkergeTheme {
-        LoadingPage()
+        PagePreview(Page()) {}
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+fun ErrorPagePreview() {
+    SkergeTheme {
+        PagePreview(Page(error = Exception("Error message here"))) {}
     }
 }
