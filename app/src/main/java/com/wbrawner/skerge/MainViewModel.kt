@@ -1,8 +1,12 @@
 package com.wbrawner.skerge
 
+import android.content.Context
+import androidx.preference.PreferenceManager
 import android.util.Log
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import androidx.lifecycle.viewmodel.CreationExtras
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asSharedFlow
@@ -10,11 +14,21 @@ import java.io.File
 import java.io.IOException
 import java.util.*
 
-class MainViewModel(private val scannerService: ScannerService = HpScannerService()) : ViewModel() {
+class MainViewModel(
+    private val scannerService: ScannerService,
+    private val fileDirectory: File
+) : ViewModel() {
     private val _pages = MutableStateFlow<List<Page>>(emptyList())
     val pages = _pages.asSharedFlow()
+    private val _scannerUrl = MutableStateFlow(scannerService.url)
+    val scannerUrl = _scannerUrl.asSharedFlow()
 
-    fun requestScan(fileDirectory: File) {
+    fun setScannerUrl(url: String) {
+        scannerService.url = url
+        _scannerUrl.value = url
+    }
+
+    fun requestScan() {
         val page = Page()
         _pages.value = _pages.value.toMutableList().apply {
             add(page)
@@ -103,6 +117,20 @@ class MainViewModel(private val scannerService: ScannerService = HpScannerServic
             updatedPages.add(pageIndex, it)
         }
         _pages.value = updatedPages
+    }
+
+    class Factory(private val context: Context) : ViewModelProvider.Factory {
+        @Suppress("UNCHECKED_CAST")
+        override fun <T : ViewModel> create(
+            modelClass: Class<T>,
+            extras: CreationExtras
+        ): T {
+            val sharedPreferences =
+                PreferenceManager.getDefaultSharedPreferences(context.applicationContext)
+            val scannerService = HpScannerService(sharedPreferences = sharedPreferences)
+            val fileDirectory = File(context.applicationContext.cacheDir, "scans")
+            return MainViewModel(scannerService, fileDirectory) as T
+        }
     }
 }
 
